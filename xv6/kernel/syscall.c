@@ -8,9 +8,9 @@
 #include "sysfunc.h"
 
 //extern unsigned long numsys;
-extern int sys_getreadcount(void);
-extern int sys_getpinfo(void);
-extern int sys_settickets(int);
+// extern int sys_getreadcount(void);
+// extern int sys_getpinfo(void);
+// extern int sys_settickets(int);
 
 // User code makes a system call with INT T_SYSCALL.
 // System call number in %eax.
