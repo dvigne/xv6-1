@@ -26,6 +26,9 @@
 #define SYS_getreadcount  22
 #define SYS_settickets  23
 #define SYS_getpinfo  24
-
+#define SYS_shmem_count 25
+#define SYS_shmem_access 26
+#define SYS_clone 27
+#define SYS_join 28
 
 #endif // _SYSCALL_H_

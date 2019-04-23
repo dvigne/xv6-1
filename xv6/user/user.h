@@ -3,6 +3,8 @@
 
 struct stat;
 
+typedef uint lock_t;
+
 // system calls
 int fork(void);
 int exit(void) __attribute__((noreturn));
@@ -39,8 +41,22 @@ void printf(int, char*, ...);
 char* gets(char*, int max);
 uint strlen(char*);
 void* memset(void*, int, uint);
+// (umalloc.c)
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+void* shmem_access(int);
+int shmem_count(int);
+
+int clone(void (*)(void*), void*, void*);
+int join(void**);
+
+// Thread Library
+int thread_create(void(*)(void*), void *);
+int thread_join(void);
+void lock_init(volatile lock_t*);
+void lock_acquire(volatile lock_t*);
+void lock_release(volatile lock_t*);
 
 #endif // _USER_H_

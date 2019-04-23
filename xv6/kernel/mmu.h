@@ -133,6 +133,7 @@ struct segdesc {
 #define PTE_PCD		0x010	// Cache-Disable
 #define PTE_A		0x020	// Accessed
 #define PTE_D		0x040	// Dirty
+#define PTE_S   0x080   // Shared
 #define PTE_PS		0x080	// Page Size
 #define PTE_MBZ		0x180	// Bits must be zero
 
@@ -217,4 +218,3 @@ struct gatedesc {
 }
 
 #endif // _MMU_H_
-

@@ -10,6 +10,10 @@ extern char data[];  // defined in data.S
 
 static pde_t *kpgdir;  // for use in scheduler()
 
+#define SHMEM_PAGES (4)
+int shmem_counter[SHMEM_PAGES];
+void* shmem_addr[SHMEM_PAGES];
+
 // Allocate one page table for the machine for the kernel address
 // space for scheduler processes.
 void
@@ -40,7 +44,7 @@ seginit(void)
 
   lgdt(c->gdt, sizeof(c->gdt));
   loadgs(SEG_KCPU << 3);
-  
+
   // Initialize cpu-local storage.
   cpu = c;
   proc = 0;
@@ -64,7 +68,7 @@ walkpgdir(pde_t *pgdir, const void *va, int create)
     // Make sure all those PTE_P bits are zero.
     memset(pgtab, 0, PGSIZE);
     // The permissions here are overly generous, but they can
-    // be further restricted by the permissions in the page table 
+    // be further restricted by the permissions in the page table
     // entries, if necessary.
     *pde = PADDR(pgtab) | PTE_P | PTE_W | PTE_U;
   }
@@ -79,7 +83,7 @@ mappages(pde_t *pgdir, void *la, uint size, uint pa, int perm)
 {
   char *a, *last;
   pte_t *pte;
-  
+
   a = PGROUNDDOWN(la);
   last = PGROUNDDOWN(la + size - 1);
   for(;;){
@@ -104,7 +108,7 @@ mappages(pde_t *pgdir, void *la, uint size, uint pa, int perm)
 // A user process uses the same page table as the kernel; the
 // page protection bits prevent it from using anything other
 // than its memory.
-// 
+//
 // setupkvm() and exec() set up every page table like this:
 //   0..640K          : user memory (text, data, stack, heap)
 //   640K..1M         : mapped direct (for IO space)
@@ -190,7 +194,7 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
   char *mem;
-  
+
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
   mem = kalloc();
@@ -225,13 +229,14 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
+//allocuvm(pde_t *pgdir, uint oldsz, uint newsz, uint shmem_count)
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
 
-  if(newsz > USERTOP)
+  if(newsz > USERTOP - proc->shmem_count * PGSIZE)
     return 0;
   if(newsz < oldsz)
     return oldsz;
@@ -250,6 +255,37 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   return newsz;
 }
 
+// Assignment 3b
+// Shared Memory Access
+// Create a shared page table
+void* shmem_access(int page_number, struct proc *proc){
+  if(page_number < 0 || page_number > 3) {
+    return NULL;
+  }
+  if(proc->shmem_access[page_number] != 0){
+    return (void*) proc->shmem_access[page_number];
+  }
+  void* va = (void*) (USERTOP - (proc->shmem_count + 1) * PGSIZE);
+  if(proc->sz >= (uint)va){
+    return NULL;
+  }
+  if(mappages(proc->pgdir, va, PGSIZE, (uint) shmem_addr[page_number], PTE_W|PTE_U|PTE_S)){
+    panic("shmem_access");
+  }
+  proc->shmem_access[page_number] = (int) va;
+  proc->shmem_count++;
+  shmem_counter[page_number]++;
+  return va;
+}
+
+int shmem_count(int page_number) {
+  return shmem_counter[page_number];
+}
+
+void shmem_decr_count(int page_number) {
+  shmem_counter[page_number]--;
+}
+
 // Deallocate user pages to bring the process size from oldsz to
 // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
 // need to be less than oldsz.  oldsz can be larger than the actual
@@ -266,7 +302,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
     pte = walkpgdir(pgdir, (char*)a, 0);
-    if(pte && (*pte & PTE_P) != 0){
+    if(pte && (*pte & PTE_P) != 0 && (*pte & PTE_S) == 0){
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
@@ -274,6 +310,12 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       *pte = 0;
     }
   }
+  for(int i = 0; i < SHMEM_PAGES; ++i){
+    if(proc->shmem_access[i] != 0){
+      shmem_counter[i]--;
+    }
+  }
+
   return newsz;
 }
 
@@ -296,8 +338,9 @@ freevm(pde_t *pgdir)
 
 // Given a parent process's page table, create a copy
 // of it for a child.
+//copyuvm(pde_t *pgdir, uint sz, uint shmem_count)
 pde_t*
-copyuvm(pde_t *pgdir, uint sz)
+copyuvm(pde_t *pgdir, uint sz, struct proc *p)
 {
   pde_t *d;
   pte_t *pte;
@@ -306,7 +349,7 @@ copyuvm(pde_t *pgdir, uint sz)
 
   if((d = setupkvm()) == 0)
     return 0;
-  for(i = 0; i < sz; i += PGSIZE){
+  for(i = PGSIZE; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void*)i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
@@ -318,6 +361,23 @@ copyuvm(pde_t *pgdir, uint sz)
     if(mappages(d, (void*)i, PGSIZE, PADDR(mem), PTE_W|PTE_U) < 0)
       goto bad;
   }
+  for(i = 0; i < 4; ++i) {
+    p->shmem_access[i] = proc->shmem_access[i];
+    if(p->shmem_access[i] != 0)
+      shmem_counter[i]++;
+  }
+  p->shmem_count = proc->shmem_count;
+  /* Same but for shared pages
+  for(i = shmem_count; i < USERTOP; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void*)i, 0)) == 0)
+      panic("copyuvm: pte should exist");
+    if(!(*pte & PTE_P))
+      panic("copyuvm: page not present");
+    pa = PTE_ADDR(*pte);
+    if(mappages(d, (void*)i, PGSIZE, pa, PTE_W|PTE_U|PTE_S) < 0)
+      goto bad;
+  }*/
+
   return d;
 
 bad:
@@ -347,7 +407,7 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 {
   char *buf, *pa0;
   uint n, va0;
-  
+
   buf = (char*)p;
   while(len > 0){
     va0 = (uint)PGROUNDDOWN(va);

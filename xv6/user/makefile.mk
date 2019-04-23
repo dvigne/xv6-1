@@ -13,13 +13,51 @@ USER_PROGS := \
 	rm\
 	sh\
 	stressfs\
+	dereferencetest\
 	getreadcount\
 	getpidcount\
 	stride\
 	tester\
 	usertests\
 	wc\
-	zombie
+	zombie\
+	test1\
+	test2\
+	test3\
+	test4\
+	test5\
+	test6\
+	test7\
+	test8\
+	test9\
+	test10\
+	test11\
+	test12\
+	test13\
+	test14\
+	test15\
+	test16\
+	test17\
+	test18\
+	test19\
+	echo_one\
+	echo_two\
+	echo_three
+#	T_badclone
+#	T_clone
+#	T_thread
+#	T_thread2
+#	T_clone2
+#	T_clone3
+#	T_join
+#	T_join2
+#	T_join3
+#	T_join4
+#	T_locks
+#	T_multi
+#	T_noexi
+#	T_size
+#	T_stack
 
 USER_PROGS := $(addprefix user/, $(USER_PROGS))
 
@@ -76,7 +114,7 @@ USER_LDFLAGS += --omagic
 USER_LDFLAGS += --entry=main
 
 # location in memory where the program will be loaded
-USER_LDFLAGS += --section-start=.text=0x0
+USER_LDFLAGS += --section-start=.text=0x1000
 
 user/bin:
 	mkdir -p user/bin

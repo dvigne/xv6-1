@@ -96,10 +96,24 @@ void*
 memmove(void *vdst, void *vsrc, int n)
 {
   char *dst, *src;
-  
+
   dst = vdst;
   src = vsrc;
   while(n-- > 0)
     *dst++ = *src++;
   return vdst;
+}
+
+
+void lock_init(volatile lock_t *lock) {
+  *lock = 0;
+}
+
+void lock_acquire(volatile lock_t *lock) {
+  while (xchg(lock, 1) == 1)
+    ; // spin
+}
+
+void lock_release(volatile lock_t *lock) {
+  *lock = 0;
 }

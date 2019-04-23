@@ -10,6 +10,9 @@
 unsigned long numsys = 0;
 extern struct pstat *pstattable;
 
+int shmem_count(int page_number);
+void* shmem_access(int page_number, struct proc *proc);
+
 int
 sys_fork(void)
 {
@@ -100,29 +103,45 @@ sys_getreadcount(void)
 }
 
 int
-sys_settickets(void)
-{
-  int tickets;
-  argint(0,&tickets);
-  pstattable->inttickets[sys_getpid()] = tickets;
-  pstattable->intstrides[sys_getpid()] = 10000 / tickets;
-  if(pstattable->inttickets[sys_getpid()] == tickets){
-    return 1;
-  } else {
+sys_shmem_access(void) {
+  int page_num;
+  if(argint(0, &page_num) < 0)
     return -1;
-  }
-  return 0;
+  return (int)shmem_access(page_num, proc);
 }
 
-int
-sys_getpinfo(void)
+int sys_shmem_count(void) {
+  int page_num;
+  // illegal page number
+  if(argint(0, &page_num) < 0)
+    return -1;
+  // call shmem_count in proc.c
+  return shmem_count(page_num);
+}
+
+int sys_clone(void)
 {
-  for(int i = 0; i < NPROC; i++){
-    if(pstattable->intinuse[i] == 0)
-      continue;
-    cprintf("%d | %d | %d | %d | %d \n", pstattable->intinuse[i],
-                  pstattable->inttickets[i], pstattable->hasintpid[i],
-                  pstattable->intticks[i], pstattable->intstrides[i]);
-  }
-  return 1;
+  int func_add;
+  int arg;
+  int stack_add;
+
+  if (argint(0, &func_add) < 0)
+     return -1;
+  if (argint(1, &arg) < 0)
+     return -1;
+  if (argint(2, &stack_add) < 0)
+     return -1;
+
+  return clone((void *)func_add, (void *)arg, (void *)stack_add);
+
+}
+
+int sys_join(void)
+{
+  int stack_add;
+
+  if (argint(0, &stack_add) < 0)
+     return -1;
+
+  return join((void **)stack_add);
 }

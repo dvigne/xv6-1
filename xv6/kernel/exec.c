@@ -33,6 +33,7 @@ exec(char *path, char **argv)
 
   // Load program into memory.
   sz = 0;
+  //sz = PGSIZE - 1;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
@@ -40,6 +41,7 @@ exec(char *path, char **argv)
       continue;
     if(ph.memsz < ph.filesz)
       goto bad;
+  //  if((sz = allocuvm(pgdir, sz, ph.va + ph.memsz, USERTOP)) == 0)
     if((sz = allocuvm(pgdir, sz, ph.va + ph.memsz)) == 0)
       goto bad;
     if(loaduvm(pgdir, (char*)ph.va, ip, ph.offset, ph.filesz) < 0)
@@ -50,6 +52,7 @@ exec(char *path, char **argv)
 
   // Allocate a one-page stack at the next page boundary
   sz = PGROUNDUP(sz);
+  //if((sz = allocuvm(pgdir, sz, sz + PGSIZE, USERTOP)) == 0)
   if((sz = allocuvm(pgdir, sz, sz + PGSIZE)) == 0)
     goto bad;
 
@@ -82,6 +85,8 @@ exec(char *path, char **argv)
 
   // Commit to the user image.
   oldpgdir = proc->pgdir;
+  proc->stackTop=USERTOP-PGSIZE;//keep track of the top of the stack
+  proc->shmem_count = 0;
   proc->pgdir = pgdir;
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
